@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peminjaman Buku Digital</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-color: #f8fafc;
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --text-main: #0f172a;
+            --primary-grad: linear-gradient(135deg, #0ea5e9, #3b82f6, #6366f1);
+            --border-light: rgba(203, 213, 225, 0.6);
+            --font-heading: 'Outfit', sans-serif;
+            --font-body: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: radial-gradient(#cbd5e1 1.5px, transparent 1.5px);
+            background-size: 24px 24px;
+            background-attachment: fixed; 
+            color: var(--text-main);
+            font-family: var(--font-body); 
+            display: flex; justify-content: center; align-items: flex-start;
+            min-height: 100vh; padding: 20px;
+        }
+
+        .app-container {
+            background: var(--card-bg); backdrop-filter: blur(20px);
+            width: 100%; max-width: 550px; border-radius: 28px;
+            border: 1px solid white;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.05);
+            padding: 40px 30px; margin-top: 10px;
+            position: relative; z-index: 1;
+        }
+
+        header { text-align: center; margin-bottom: 25px; }
+        .portal-title { 
+            font-family: var(--font-heading); font-size: 24px; font-weight: 800; 
+            background: var(--primary-grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; 
+        }
+        
+        .panel { display: none; }
+        .panel.active { display: block; }
+
+        button { 
+            width: 100%; padding: 15px; border: none; border-radius: 14px; 
+            font-size: 14px; font-weight: 700; cursor: pointer; 
+            margin-bottom: 12px; transition: 0.2s; 
+        }
+        .btn-primary { background: var(--primary-grad); color: white; }
+        .btn-secondary { background: #f1f5f9; color: var(--text-main); border: 1px solid var(--border-light); }
+        .btn-sm { padding: 6px 12px; width: auto; font-size: 11px; margin: 0; }
+
+        .form-group { margin-bottom: 18px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+        
+        .input-field, .custom-select-btn { 
+            width: 100%; padding: 14px; border: 1.5px solid var(--border-light); 
+            background: white; border-radius: 14px; font-size: 14px; outline: none;
+            cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .file-upload-box {
+            border: 2px dashed #cbd5e1; border-radius: 14px; padding: 15px;
+            text-align: center; background: #fff; cursor: pointer;
+        }
+        #preview-img { width: 100%; border-radius: 10px; margin-top: 10px; display: none; }
+
+        /* Modal System */
+        .modal-overlay { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); 
+            display: none; justify-content: center; align-items: flex-end; 
+            z-index: 9999; pointer-events: auto;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal-content { 
+            background: white; width: 100%; max-width: 500px; 
+            border-radius: 24px 24px 0 0; padding: 25px; 
+            max-height: 70vh; overflow-y: auto; 
+            transform: translateY(100%); transition: 0.3s ease-out;
+        }
+        .modal-overlay.show .modal-content { transform: translateY(0); }
+        .modal-item { 
+            padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; 
+            margin-bottom: 8px; cursor: pointer; text-align: center; font-weight: 600; 
+        }
+        .modal-item:hover { background: #f8fafc; border-color: #3b82f6; }
+
+        /* Admin Table */
+        .table-container { width: 100%; overflow-x: auto; margin-top: 15px; border-radius: 10px; border: 1px solid #e2e8f0; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; background: white; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #f1f5f9; }
+        th { background: #f8fafc; }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <!-- Panel Awal -->
+        <div id="panel-awal" class="panel active">
+            <header>
+                <h1 class="portal-title">PEMINJAMAN BUKU</h1>
+            </header>
+            <button class="btn-primary" onclick="switchPanel('panel-form')">PINJAM BUKU SEKARANG</button>
+            <button class="btn-secondary" onclick="switchPanel('panel-login')">ADMIN LOGIN</button>
+        </div>
+
+        <!-- Panel Form -->
+        <div id="panel-form" class="panel">
+            <h3 style="margin-bottom: 15px; text-align: center;">Isi Data Peminjaman</h3>
+            
+            <div class="form-group">
+                <label>Hari</label>
+                <div class="custom-select-btn" onclick="openModal('modal-hari')">
+                    <span id="txt-hari">Pilih Hari...</span> <span>▼</span>
+                </div>
+                <input type="hidden" id="val-hari">
+            </div>
+
+            <div class="form-group">
+                <label>Kelas</label>
+                <div class="custom-select-btn" onclick="openModal('modal-kelas')">
+                    <span id="txt-kelas">Pilih Kelas...</span> <span>▼</span>
+                </div>
+                <input type="hidden" id="val-kelas">
+            </div>
+
+            <div class="form-group">
+                <label>Judul Buku</label>
+                <div class="custom-select-btn" onclick="openBuku()">
+                    <span id="txt-buku">Pilih Buku...</span> <span>▼</span>
+                </div>
+                <input type="hidden" id="val-buku">
+            </div>
+
+            <div class="form-group">
+                <label>Nama Lengkap</label>
+                <input type="text" id="val-nama" class="input-field" placeholder="Masukkan nama...">
+            </div>
+
+            <div class="form-group">
+                <label>Foto Bukti (Opsional - Max 50MB)</label>
+                <div class="file-upload-box" onclick="document.getElementById('inp-file').click()">
+                    <span id="txt-file">Klik untuk upload gambar</span>
+                    <img id="preview-img">
+                </div>
+                <input type="file" id="inp-file" class="hidden" accept="image/*" onchange="previewFile(this)">
+                <input type="hidden" id="val-foto">
+            </div>
+
+            <button class="btn-primary" onclick="simpanData()">KIRIM SEKARANG</button>
+            <button class="btn-secondary" onclick="location.reload()">KEMBALI</button>
+        </div>
+
+        <!-- Panel Login -->
+        <div id="panel-login" class="panel">
+            <h3 style="margin-bottom: 15px; text-align: center;">Login Admin</h3>
+            <input type="password" id="pass-admin" class="input-field" placeholder="Password Admin" style="margin-bottom: 15px;">
+            <button class="btn-primary" onclick="loginAdmin()">MASUK</button>
+            <button class="btn-secondary" onclick="switchPanel('panel-awal')">KEMBALI</button>
+        </div>
+
+        <!-- Panel Admin Dashboard -->
+        <div id="panel-admin" class="panel">
+            <h3 style="margin-bottom: 15px; text-align: center;">Data Peminjam</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nama (Kelas)</th>
+                            <th>Buku</th>
+                            <th>Bukti</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-list"></tbody>
+                </table>
+            </div>
+            <button class="btn-secondary" style="margin-top: 15px;" onclick="location.reload()">LOGOUT</button>
+        </div>
+    </div>
+
+    <!-- Modal Elements -->
+    <div id="modal-hari" class="modal-overlay" onclick="closeModal('modal-hari')">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-item" onclick="setHari('Senin')">Senin</div>
+            <div class="modal-item" onclick="setHari('Selasa')">Selasa</div>
+            <div class="modal-item" onclick="setHari('Rabu')">Rabu</div>
+            <div class="modal-item" onclick="setHari('Kamis')">Kamis</div>
+            <div class="modal-item" onclick="setHari('Jumat')">Jumat</div>
+        </div>
+    </div>
+
+    <div id="modal-kelas" class="modal-overlay" onclick="closeModal('modal-kelas')">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <script>
+                for(let i=1; i<=10; i++){
+                    document.write(`<div class="modal-item" onclick="setKelas('XI.F${i}')">XI.F${i}</div>`);
+                }
+            </script>
+        </div>
+    </div>
+
+    <div id="modal-buku" class="modal-overlay" onclick="closeModal('modal-buku')">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div id="buku-container"></div>
+        </div>
+    </div>
+
+    <script>
+        // Supabase Initialization
+        const supabaseUrl = 'https://hwljckozqobryksiliip.supabase.co';
+        const supabaseAnonKey = 'sb_publishable_-dgnPVhhb0TefZ0y6KN_GA_2Ii5XiiL';
+        const _supabase = supabase.createClient(supabaseUrl, supabaseAnonKey);
+
+        const dataBuku = {
+            "Senin": ["Buku Fisika", "Buku Biologi", "Buku B.Sunda", "Buku Matematika"],
+            "Selasa": ["Buku Sejarah", "Buku PJOK", "Buku Ekonomi", "Buku Matematika"],
+            "Rabu": ["Buku Seni", "Buku Fisika", "Buku B.Inggris", "Buku Informatika"],
+            "Kamis": ["Buku Biologi", "Buku PKN", "Buku B.Indo", "Buku PAI"],
+            "Jumat": ["Buku Informatika", "Buku Ekonomi", "Buku Fisika"]
+        };
+
+        function switchPanel(id) {
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+
+        function openModal(id) {
+            const m = document.getElementById(id);
+            m.style.display = 'flex';
+            setTimeout(() => m.classList.add('show'), 10);
+        }
+
+        function closeModal(id) {
+            const m = document.getElementById(id);
+            m.classList.remove('show');
+            setTimeout(() => m.style.display = 'none', 300);
+        }
+
+        function setHari(h) {
+            document.getElementById('val-hari').value = h;
+            document.getElementById('txt-hari').innerText = h;
+            closeModal('modal-hari');
+        }
+
+        function setKelas(k) {
+            document.getElementById('val-kelas').value = k;
+            document.getElementById('txt-kelas').innerText = k;
+            closeModal('modal-kelas');
+        }
+
+        function openBuku() {
+            const hari = document.getElementById('val-hari').value;
+            if(!hari) return Swal.fire('Pilih Hari', 'Silakan pilih hari dulu', 'warning');
+            
+            const container = document.getElementById('buku-container');
+            container.innerHTML = dataBuku[hari].map(b => `
+                <div class="modal-item" onclick="setBuku('${b}')">${b}</div>
+            `).join('');
+            openModal('modal-buku');
+        }
+
+        function setBuku(b) {
+            document.getElementById('val-buku').value = b;
+            document.getElementById('txt-buku').innerText = b;
+            closeModal('modal-buku');
+        }
+
+        function previewFile(input) {
+            const file = input.files[0];
+            if(file && file.size < 50 * 1024 * 1024) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    document.getElementById('val-foto').value = e.target.result;
+                    const prev = document.getElementById('preview-img');
+                    prev.src = e.target.result;
+                    prev.style.display = 'block';
+                    document.getElementById('txt-file').innerText = "Gambar dipilih";
+                };
+                reader.readAsDataURL(file);
+            } else if(file) {
+                Swal.fire('Error', 'File maksimal 50MB', 'error');
+            }
+        }
+
+        async function simpanData() {
+            const h = document.getElementById('val-hari').value;
+            const k = document.getElementById('val-kelas').value;
+            const b = document.getElementById('val-buku').value;
+            const n = document.getElementById('val-nama').value;
+            const f = document.getElementById('val-foto').value;
+
+            if(!h || !k || !b || !n) return Swal.fire('Error', 'Lengkapi semua kolom!', 'error');
+
+            Swal.fire({ title: 'Menyimpan...', didOpen: () => Swal.showLoading() });
+
+            const { error } = await _supabase.from('absensi').insert([{
+                nama: `${n.toUpperCase()} (${k})`,
+                hari: h,
+                mapel: b,
+                status: 'Pinjam',
+                foto: f || "",
+                waktu_str: new Date().toLocaleString('id-ID')
+            }]);
+
+            if(error) Swal.fire('Gagal', error.message, 'error');
+            else Swal.fire('Berhasil', 'Data tersimpan!', 'success').then(() => location.reload());
+        }
+
+        async function loginAdmin() {
+            if(document.getElementById('pass-admin').value === 'admin123') {
+                switchPanel('panel-admin');
+                const { data } = await _supabase.from('absensi').select('*').order('id', {ascending: false});
+                const list = document.getElementById('admin-list');
+                list.innerHTML = data.map(item => `
+                    <tr>
+                        <td>${item.nama}</td>
+                        <td>${item.mapel}</td>
+                        <td>${item.foto ? `<button class="btn-primary btn-sm" onclick="showImg('${item.foto}')">Lihat</button>` : '-'}</td>
+                    </tr>
+                `).join('');
+            } else {
+                Swal.fire('Error', 'Password Salah', 'error');
+            }
+        }
+
+        function showImg(base64) {
+            Swal.fire({ imageUrl: base64, imageAlt: 'Bukti' });
+        }
+    </script>
+</body>
+</html>
